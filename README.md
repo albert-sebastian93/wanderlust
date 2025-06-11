@@ -1,106 +1,280 @@
-# Wanderlust - Your Ultimate Travel Blog 🌍✈️
+# 🚢 Wanderlust – Dockerized Setup
 
-WanderLust is a simple MERN travel blog website ✈ This project is aimed to help people to contribute in open source, upskill in react and also master git.
+This repository containerizes the **Wanderlust** fullstack blog application using Docker and Docker Compose. It includes services for the frontend (Vite), backend (Node.js + Express), and MongoDB.
 
-![Preview Image](https://github.com/krishnaacharyaa/wanderlust/assets/116620586/17ba9da6-225f-481d-87c0-5d5a010a9538)
+---
 
-## [Figma Design File](https://www.figma.com/file/zqNcWGGKBo5Q2TwwVgR6G5/WanderLust--A-Travel-Blog-App?type=design&node-id=0%3A1&mode=design&t=c4oCG8N1Fjf7pxTt-1)
-## [Discord Channel](https://discord.gg/FEKasAdCrG)
+## 🧱 1. Project Structure (Dockerized)
 
-## 🎯 Goal of this project
+```
+wanderlust/
+├── backend/
+│   ├── Dockerfile
+│   ├── .env.sample
+│   └── data/
+│       └── sample_posts.json
+├── frontend/
+│   ├── Dockerfile
+│   ├── .env.sample
+└── docker-compose.yml
+```
 
-At its core, this project embodies two important aims:
+---
 
-1. **Start Your Open Source Journey**: It's aimed to kickstart your open-source journey. Here, you'll learn the basics of Git and get a solid grip on the MERN stack and I strongly believe that learning and building should go hand in hand.
-2. **React Mastery**: Once you've got the basics down, a whole new adventure begins of mastering React. This project covers everything, from simple form validation to advanced performance enhancements. And I've planned much more cool stuff to add in the near future if the project hits more number of contributors.
+## 🐳 2. Dockerfile Breakdown
 
-_I'd love for you to make the most of this project - it's all about learning, helping, and growing in the open-source world._
+### Backend `backend/Dockerfile`
 
-## Setting up the project locally
+```dockerfile
+FROM node:21 AS builder
 
-### Setting up the Backend
+WORKDIR /app
+COPY package*.json ./
+RUN npm i
+COPY . .
 
-1. **Fork and Clone the Repository**
+FROM node:21-slim
+WORKDIR /app
+COPY --from=builder /app ./
+COPY .env.sample .env.local
+EXPOSE 5000
+CMD ["npm", "start"]
+```
 
-   ```bash
-   git clone https://github.com/{your-username}/wanderlust.git
-   ```
+✅ **Explanation**:
+- Stage 1 installs dependencies and copies source files.
+- Stage 2 runs the lightweight image for runtime.
+- Exposes port `5000`.
+- Copies `.env.sample` to `.env.local` for configuration inside the container.
 
-2. **Navigate to the Backend Directory**
+---
 
-   ```bash
-   cd backend
-   ```
+### Frontend `frontend/Dockerfile`
 
-3. **Install Required Dependencies**
+```dockerfile
+FROM node:21 AS builder
 
-   ```bash
-   npm i
-   ```
+WORKDIR /app
+COPY package*.json ./
+RUN npm i
+COPY . .
 
-4. **Set up your MongoDB Database**
+FROM node:21-slim
+WORKDIR /app
+COPY --from=builder /app ./
+COPY .env.sample .env.local
+CMD ["npm", "run", "dev", "--", "--host"]
+```
 
-   - Open MongoDB Compass and connect MongoDB locally at `mongodb://localhost:27017`.
+✅ **Explanation**:
+- Uses Vite's dev server.
+- `--host` allows access from outside the container (e.g., your browser hitting the EC2 instance).
 
-5. **Import sample data**
+---
 
-   > To populate the database with sample posts, you can copy the content from the `backend/data/sample_posts.json` file and insert it as a document in the `wanderlust/posts` collection in your local MongoDB database using either MongoDB Compass or `mongoimport`.
+## 🧩 3. Docker Compose Overview
 
-   ```bash
-   mongoimport --db wanderlust --collection posts --file ./data/sample_posts.json --jsonArray
-   ```
+### `docker-compose.yml`
 
-6. **Configure Environment Variables**
+```yaml
+version: '3.8'
 
-   ```bash
-   cp .env.sample .env
-   ```
+services:
+  mongodb:
+    container_name: mongo
+    image: mongo:latest
+    volumes:
+      - ./backend/data:/data
+    ports:
+      - "27017:27017"
 
-7. **Start the Backend Server**
+  backend:
+    container_name: backend
+    build: ./backend
+    env_file:
+      - ./backend/.env.sample
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongodb
 
-   ```bash
-   npm start
-   ```
+  frontend:
+    container_name: frontend
+    build: ./frontend
+    env_file:
+      - ./frontend/.env.sample
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
 
-   > You should see the following on your terminal output on successful setup.
-   >
-   > ```bash
-   > [BACKEND] Server is running on port 5000
-   > [BACKEND] Database connected: mongodb://127.0.0.1/wanderlust
-   > ```
+volumes:
+  data:
+```
 
-### Setting up the Frontend
+✅ **Compose Explanation**:
+- Spins up **MongoDB**, **backend**, and **frontend** as isolated services.
+- Uses volume to persist MongoDB data.
+- All services depend on the proper start order (`depends_on`).
 
-1. **Open a New Terminal**
+---
 
-   ```bash
-   cd frontend
-   ```
+## 📦 4. Volume Explanation
 
-2. **Install Dependencies**
+```yaml
+volumes:
+  - ./backend/data:/data
+```
 
-   ```bash
-   npm i
-   ```
+✅ Binds your host’s `./backend/data` to MongoDB’s internal `/data` directory:
+- Enables import of seed data.
+- Data persists across restarts.
 
-3. **Configure Environment Variables**
+---
 
-   ```bash
-   cp .env.sample .env.local
-   ```
+## ⚙️ 5. Build and Run
 
-4. **Launch the Development Server**
+### 🔨 Start All Containers
+```bash
+docker-compose up --build
+```
 
-   ```bash
-   npm run dev
-   ```
+Rebuilds images and runs all services.
 
-## 🌟 Ready to Contribute?
+### ⏹️ Stop & Remove Containers
+```bash
+docker-compose down
+```
 
-Kindly go through [CONTRIBUTING.md](https://github.com/krishnaacharyaa/wanderlust/blob/main/.github/CONTRIBUTING.md) to understand everything from setup to contributing guidelines.
+Stops and cleans up all services.
 
-## 💖 Show Your Support
+---
 
-If you find this project interesting and inspiring, please consider showing your support by starring it on GitHub! Your star goes a long way in helping me reach more developers and encourages me to keep enhancing the project.
+## 🧬 6. Import Sample Data into MongoDB
 
-🚀 Feel free to get in touch with me for any further queries or support, happy to help :)
+After the containers are up:
+
+### 🛠️ Exec into the MongoDB container:
+```bash
+docker exec -it mongo bash
+```
+
+### 📥 Run the import command:
+```bash
+mongoimport --db wanderlust --collection posts --file ./data/sample_posts.json --jsonArray
+```
+
+✅ This seeds the database with initial blog post data.
+
+---
+
+## 🔐 7. Environment Variables
+
+### Backend `.env.sample`
+
+```env
+MONGODB_URI="mongodb://mongo/wanderlust"
+#REDIS_URL="127.0.0.1:6379"
+CORS_ORIGIN="http://address-of-your-ec2-instance:5173"
+```
+
+🧠 **Explanation**:
+- `MONGODB_URI`: Connects to the MongoDB service using internal Docker networking.
+- `CORS_ORIGIN`: Whitelists requests coming from the frontend server (replace with your EC2 public IP if needed).
+- `REDIS_URL`: Placeholder for future Redis support.
+
+---
+
+### Frontend `.env.sample`
+
+```env
+VITE_API_PATH="http://address-of-your-ec2-instance:5000"
+```
+
+🧠 **Explanation**:
+- Used by Vite at runtime to point API requests to the backend server.
+- Ensure the EC2 instance's ports (`5173` for frontend, `5000` for backend) are **open in your AWS Security Group** settings.
+
+---
+
+## 🌐 Accessing the App on EC2
+
+If your EC2 instance has a public IP (e.g., `13.127.182.14`), access:
+
+- Frontend → `http://address-of-your-ec2-instance:5173`
+- Backend API → `http://address-of-your-ec2-instance:5000`
+
+---
+
+## ✅ Summary
+
+| Component | Description                            |
+|-----------|----------------------------------------|
+| MongoDB   | Data persistence via bind mount        |
+| Backend   | Node.js API, port `5000`               |
+| Frontend  | Vite Dev Server, port `5173`           |
+| Compose   | Manages build/run of all services      |
+| Volumes   | Enable Mongo data import/persistence   |
+
+---
+
+## 🧯 Common Errors & Troubleshooting
+
+### ❌ `frontend` not accessible in browser
+
+- **Symptoms**: Browser shows "Site can’t be reached" or connection times out.
+- **Fixes**:
+  - Ensure `--host` is included in the `CMD` of `frontend/Dockerfile`.
+  - Confirm port `5173` is open in your EC2 **security group rules**.
+  - Run `docker logs frontend` to check for runtime issues.
+
+---
+
+### ❌ `backend` can't connect to MongoDB
+
+- **Symptoms**: Logs show `MongoNetworkError` or crash on startup.
+- **Fixes**:
+  - Ensure the Mongo URI in `.env.sample` is `mongodb://mongo/wanderlust`.
+  - Check MongoDB is running: `docker ps` and `docker logs mongo`.
+  - Restart all containers: `docker-compose down && docker-compose up --build`.
+
+---
+
+### ❌ `mongoimport` fails with "No such file or directory"
+
+- **Symptoms**: The command says it can't find `sample_posts.json`.
+- **Fixes**:
+  - Make sure you're inside the container: `docker exec -it mongo bash`
+  - Use correct path inside container: `/data/sample_posts.json`
+  - Confirm the file exists locally under `backend/data` and is mounted properly.
+
+---
+
+### ❌ `.env.sample` not applied
+
+- **Symptoms**: Backend or frontend doesn't reflect env variable values.
+- **Fixes**:
+  - Confirm `.env.sample` is copied as `.env.local` in the Dockerfile.
+  - Ensure `env_file:` is set in `docker-compose.yml` for both services.
+  - Rebuild containers if changes were made: `docker-compose up --build`.
+
+---
+
+### ❌ API CORS Error in browser
+
+- **Symptoms**: Console shows: *“Blocked by CORS policy”* when frontend calls API.
+- **Fixes**:
+  - Update `CORS_ORIGIN` in `backend/.env.sample` to match your frontend URL, e.g.:  
+    `http://<your-ec2-ip>:5173`
+  - Rebuild and restart backend container.
+
+---
+
+### ❌ "Connection refused" when accessing app via EC2 public IP
+
+- **Fixes**:
+  - Open required ports (`5173`, `5000`, `27017`) in AWS EC2 **Security Group**.
+  - Use EC2's **public IP** instead of `localhost`.
+  - Add `--host` to Vite command so frontend is reachable externally.
+
+---
